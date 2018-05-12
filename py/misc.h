@@ -81,18 +81,34 @@ typedef unsigned int uint;
 #endif
 #define m_del_obj(type, ptr) (m_del(type, ptr, 1))
 
-void *m_malloc(size_t num_bytes);
-void *m_malloc_maybe(size_t num_bytes);
-void *m_malloc_with_finaliser(size_t num_bytes);
-void *m_malloc0(size_t num_bytes);
+void *trace_alloc(const char *filename, const int lineno, const char *desc, size_t num, bool allocating, void *ptr);
+void *trace_realloc(const char *filename, const int lineno, const char *desc, size_t oldsize, size_t newsize, void *oldptr, bool maybe, void *newptr);
+#define m_malloc(sz) (trace_alloc(__FILE__, __LINE__, NULL, sz, true, m_malloc_(sz)))
+#define m_malloc_maybe(sz) (trace_alloc(__FILE__, __LINE__, NULL, sz, true, m_malloc_maybe_(sz)))
+#define m_malloc_with_finaliser(sz) (trace_alloc(__FILE__, __LINE__, NULL, sz, true, m_malloc_(sz)))
+#define m_malloc0(sz) (trace_alloc(__FILE__, __LINE__, NULL, sz, true, m_malloc_(sz)))
 #if MICROPY_MALLOC_USES_ALLOCATED_SIZE
-void *m_realloc(void *ptr, size_t old_num_bytes, size_t new_num_bytes);
-void *m_realloc_maybe(void *ptr, size_t old_num_bytes, size_t new_num_bytes, bool allow_move);
-void m_free(void *ptr, size_t num_bytes);
+#define m_realloc(ptr, old, n) (trace_realloc(__FILE__, __LINE__, #ptr, old, n, ptr, false, m_realloc_(ptr, old, n)))
+#define m_realloc_maybe(ptr, old, n, move) (trace_realloc(__FILE__, __LINE__, #ptr, old, n, ptr, true, m_realloc_maybe_(ptr, old, n, move)))
+#define m_free(ptr, sz) {(void)trace_alloc(__FILE__, __LINE__, #ptr, sz, false, ptr);}
 #else
-void *m_realloc(void *ptr, size_t new_num_bytes);
-void *m_realloc_maybe(void *ptr, size_t new_num_bytes, bool allow_move);
-void m_free(void *ptr);
+#define m_realloc(ptr, n) (trace_realloc(__FILE__, __LINE__, #ptr, 0, n, ptr, false, m_realloc_(ptr, n)))
+#define m_realloc_maybe(ptr, n, move) (trace_realloc(__FILE__, __LINE__, #ptr, 0, n, ptr, true, m_realloc_maybe_(ptr, n, move)))
+#define m_free(ptr) ((void)trace_alloc(__FILE__, __LINE__, #ptr, 0, false, ptr))
+#endif
+
+void *m_malloc_(size_t num_bytes);
+void *m_malloc_maybe_(size_t num_bytes);
+void *m_malloc_with_finaliser_(size_t num_bytes);
+void *m_malloc0_(size_t num_bytes);
+#if MICROPY_MALLOC_USES_ALLOCATED_SIZE
+void *m_realloc_(void *ptr, size_t old_num_bytes, size_t new_num_bytes);
+void *m_realloc_maybe_(void *ptr, size_t old_num_bytes, size_t new_num_bytes, bool allow_move);
+void m_free_(void *ptr, size_t num_bytes);
+#else
+void *m_realloc_(void *ptr, size_t new_num_bytes);
+void *m_realloc_maybe_(void *ptr, size_t new_num_bytes, bool allow_move);
+void m_free_(void *ptr);
 #endif
 NORETURN void m_malloc_fail(size_t num_bytes);
 

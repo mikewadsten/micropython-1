@@ -270,6 +270,7 @@ MP_NOINLINE int main_(int argc, char **argv) {
     return ret & 0xff;
 }
 
+int alloc_trace_fd = 0;
 int main(int argc, char **argv) {
     mp_stack_ctrl_init();
     return main_(argc, argv);

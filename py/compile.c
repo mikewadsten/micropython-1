@@ -3506,9 +3506,13 @@ mp_raw_code_t *mp_compile_to_raw_code(mp_parse_tree_t *parse_tree, qstr source_f
 }
 
 mp_obj_t mp_compile(mp_parse_tree_t *parse_tree, qstr source_file, uint emit_opt, bool is_repl) {
+    extern int alloc_trace_fd;
+    dprintf(alloc_trace_fd, "# mp_compile: Begin compile %s\n", qstr_str(source_file));
     mp_raw_code_t *rc = mp_compile_to_raw_code(parse_tree, source_file, emit_opt, is_repl);
     // return function that executes the outer module
-    return mp_make_function_from_raw_code(rc, MP_OBJ_NULL, MP_OBJ_NULL);
+    mp_obj_t ret = mp_make_function_from_raw_code(rc, MP_OBJ_NULL, MP_OBJ_NULL);
+    dprintf(alloc_trace_fd, "# mp_compile: End compile %s\n", qstr_str(source_file));
+    return ret;
 }
 
 #endif // MICROPY_ENABLE_COMPILER

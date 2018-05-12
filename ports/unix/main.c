@@ -94,6 +94,8 @@ STATIC int handle_uncaught_exception(mp_obj_base_t *exc) {
 #define LEX_SRC_FILENAME (3)
 #define LEX_SRC_STDIN (4)
 
+int alloc_trace_fd = 0;
+
 // Returns standard error codes: 0 for success, 1 for all other errors,
 // except if FORCED_EXIT bit is set then script raised SystemExit and the
 // value of the exit is in the lower 8 bits of the return value
@@ -102,6 +104,7 @@ STATIC int execute_from_lexer(int source_kind, const void *source, mp_parse_inpu
 
     nlr_buf_t nlr;
     if (nlr_push(&nlr) == 0) {
+        dprintf(alloc_trace_fd, "# Start lex\n");
         // create lexer based on source kind
         mp_lexer_t *lex;
         if (source_kind == LEX_SRC_STR) {
@@ -124,6 +127,9 @@ STATIC int execute_from_lexer(int source_kind, const void *source, mp_parse_inpu
         }
         #endif
 
+        dprintf(alloc_trace_fd, "# End lex %s\n", qstr_str(source_name));
+        dprintf(alloc_trace_fd, "# Start parse\n");
+
         mp_parse_tree_t parse_tree = mp_parse(lex, input_kind);
 
         #if defined(MICROPY_UNIX_COVERAGE)
@@ -135,7 +141,11 @@ STATIC int execute_from_lexer(int source_kind, const void *source, mp_parse_inpu
         }
         #endif
 
+        dprintf(alloc_trace_fd, "# End parse\n# Start compile\n");
+
         mp_obj_t module_fun = mp_compile(&parse_tree, source_name, emit_opt, is_repl);
+
+        dprintf(alloc_trace_fd, "# End compile\n");
 
         if (!compile_only) {
             // execute it
@@ -403,10 +413,12 @@ STATIC void set_sys_argv(char *argv[], int argc, int start_arg) {
 
 MP_NOINLINE int main_(int argc, char **argv);
 
+#include <fcntl.h>
 int main(int argc, char **argv) {
     #if MICROPY_PY_THREAD
     mp_thread_init();
     #endif
+    alloc_trace_fd = open("alloc_trace.txt", O_RDWR|O_CREAT, 0644);
     // We should capture stack top ASAP after start, and it should be
     // captured guaranteedly before any other stack variables are allocated.
     // For this, actual main (renamed main_) should not be inlined into

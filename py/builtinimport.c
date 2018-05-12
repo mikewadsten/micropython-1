@@ -449,6 +449,8 @@ mp_obj_t mp_builtin___import__(size_t n_args, const mp_obj_t *args) {
                     }
                     path.len = orig_path_len;
                 } else { // MP_IMPORT_STAT_FILE
+                    extern int alloc_trace_fd;
+                    dprintf(alloc_trace_fd, "STAT_FILE %s\n", vstr_str(&path));
                     do_load(module_obj, &path);
                     // This should be the last component in the import path.  If there are
                     // remaining components then it's an ImportError because the current path

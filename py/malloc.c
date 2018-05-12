@@ -74,7 +74,44 @@ STATIC void *realloc_ext(void *ptr, size_t n_bytes, bool allow_move) {
 }
 #endif // MICROPY_ENABLE_GC
 
-void *m_malloc(size_t num_bytes) {
+extern int alloc_trace_fd;
+void *trace_alloc(const char *filename, const int lineno, const char *desc, size_t num, bool allocating, void *ptr)
+{
+    if (!allocating) {
+        if (alloc_trace_fd)
+        {
+            dprintf(alloc_trace_fd, "free|%s:%d|%zu|%p\n", filename, lineno, num, ptr);
+#if 0
+            if (desc)
+                    dprintf(alloc_trace_fd, "note|%s\n", desc);
+#endif
+        }
+#if MICROPY_MALLOC_USES_ALLOCATED_SIZE
+        m_free_(ptr, num);
+#else
+        m_free_(ptr);
+#endif
+        return NULL;
+    }
+
+    if (alloc_trace_fd)
+        dprintf(alloc_trace_fd, "alloc|%s:%d|%zu|%p\n", filename, lineno, num, ptr);
+    return ptr;
+}
+void *trace_realloc(const char *filename, const int lineno, const char *desc, size_t oldsize, size_t newsize, void *oldptr, bool maybe, void *newptr)
+{
+        if (alloc_trace_fd) {
+                dprintf(alloc_trace_fd, "realloc%s|%s:%d|%zu -> %zu|%p -> %p\n",
+                        maybe ? "_maybe" : "", filename, lineno, oldsize, newsize, oldptr, newptr);
+#if 0
+                if (desc)
+                        dprintf(alloc_trace_fd, "note|%s\n", desc);
+#endif
+        }
+    return newptr;
+}
+
+void *m_malloc_(size_t num_bytes) {
     void *ptr = malloc(num_bytes);
     if (ptr == NULL && num_bytes != 0) {
         m_malloc_fail(num_bytes);
@@ -88,7 +125,7 @@ void *m_malloc(size_t num_bytes) {
     return ptr;
 }
 
-void *m_malloc_maybe(size_t num_bytes) {
+void *m_malloc_maybe_(size_t num_bytes) {
     void *ptr = malloc(num_bytes);
 #if MICROPY_MEM_STATS
     MP_STATE_MEM(total_bytes_allocated) += num_bytes;
@@ -100,7 +137,7 @@ void *m_malloc_maybe(size_t num_bytes) {
 }
 
 #if MICROPY_ENABLE_FINALISER
-void *m_malloc_with_finaliser(size_t num_bytes) {
+void *m_malloc_with_finaliser_(size_t num_bytes) {
     void *ptr = malloc_with_finaliser(num_bytes);
     if (ptr == NULL && num_bytes != 0) {
         m_malloc_fail(num_bytes);
@@ -115,7 +152,7 @@ void *m_malloc_with_finaliser(size_t num_bytes) {
 }
 #endif
 
-void *m_malloc0(size_t num_bytes) {
+void *m_malloc0_(size_t num_bytes) {
     void *ptr = m_malloc(num_bytes);
     // If this config is set then the GC clears all memory, so we don't need to.
     #if !MICROPY_GC_CONSERVATIVE_CLEAR
@@ -125,9 +162,9 @@ void *m_malloc0(size_t num_bytes) {
 }
 
 #if MICROPY_MALLOC_USES_ALLOCATED_SIZE
-void *m_realloc(void *ptr, size_t old_num_bytes, size_t new_num_bytes) {
+void *m_realloc_(void *ptr, size_t old_num_bytes, size_t new_num_bytes) {
 #else
-void *m_realloc(void *ptr, size_t new_num_bytes) {
+void *m_realloc_(void *ptr, size_t new_num_bytes) {
 #endif
     void *new_ptr = realloc(ptr, new_num_bytes);
     if (new_ptr == NULL && new_num_bytes != 0) {
@@ -153,9 +190,9 @@ void *m_realloc(void *ptr, size_t new_num_bytes) {
 }
 
 #if MICROPY_MALLOC_USES_ALLOCATED_SIZE
-void *m_realloc_maybe(void *ptr, size_t old_num_bytes, size_t new_num_bytes, bool allow_move) {
+void *m_realloc_maybe_(void *ptr, size_t old_num_bytes, size_t new_num_bytes, bool allow_move) {
 #else
-void *m_realloc_maybe(void *ptr, size_t new_num_bytes, bool allow_move) {
+void *m_realloc_maybe_(void *ptr, size_t new_num_bytes, bool allow_move) {
 #endif
     void *new_ptr = realloc_ext(ptr, new_num_bytes, allow_move);
 #if MICROPY_MEM_STATS
@@ -181,9 +218,9 @@ void *m_realloc_maybe(void *ptr, size_t new_num_bytes, bool allow_move) {
 }
 
 #if MICROPY_MALLOC_USES_ALLOCATED_SIZE
-void m_free(void *ptr, size_t num_bytes) {
+void m_free_(void *ptr, size_t num_bytes) {
 #else
-void m_free(void *ptr) {
+void m_free_(void *ptr) {
 #endif
     free(ptr);
 #if MICROPY_MEM_STATS
